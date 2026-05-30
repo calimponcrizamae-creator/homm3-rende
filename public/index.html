@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoMM3 Online - Gra Multiplayer HD</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
+        :root {
+            --gold: #d4af37;
+            --dark-bg: #0a0e27;
+            --card-bg: #1a1f3a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent-red: #e94560;
+            --accent-green: #00ff88;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--dark-bg) 0%, #1a1a2e 50%, #2d1b4e 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            background-attachment: fixed;
+        }
+        
+        .main-wrapper {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+        
+        .left-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            overflow-y: auto;
+            background: linear-gradient(180deg, rgba(10,14,39,0.95) 0%, rgba(26,31,58,0.95) 100%);
+        }
+        
+        .right-panel {
+            width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            overflow-y: auto;
+            background: linear-gradient(180deg, rgba(26,31,58,0.98) 0%, rgba(45,27,78,0.98) 100%);
+            border-left: 2px solid var(--gold);
+        }
+        
+        header {
+            text-align: center;
+            padding: 25px;
+            background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(212,175,55,0.1) 100%);
+            border-radius: 12px;
+            border: 2px solid var(--gold);
+            box-shadow: 0 8px 32px rgba(212,175,55,0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            animation: glow 2s infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        h1 {
+            color: var(--gold);
+            font-size: 3em;
+            text-shadow: 0 4px 20px rgba(212,175,55,0.4), 0 0 30px rgba(233,69,96,0.2);
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+            font-weight: 900;
+        }
+        
+        .status {
+            display: flex;
+            justify-content: space-around;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .status-item {
+            background: linear-gradient(135deg, rgba(212,175,55,0.1) 0%, rgba(0,0,0,0.3) 100%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: 1px solid var(--gold);
+            box-shadow: 0 4px 15px rgba(212,175,55,0.1);
+            transition: all 0.3s;
+        }
+        
+        .status-item:hover {
+            box-shadow: 0 6px 25px rgba(212,175,55,0.2);
+            transform: translateY(-2px);
+        }
+        
+        .status-item span {
+            color: var(--accent-green);
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .game-area {
+            background: linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(26,31,58,0.4) 100%);
+            border: 2px solid var(--gold);
+            border-radius: 12px;
+            padding: 25px;
+            min-height: 500px;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            flex: 1;
+        }
+        
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 15px;
+        }
+        
+        .game-header h2 { 
+            color: var(--gold);
+            font-size: 1.8em;
+            text-shadow: 0 2px 10px rgba(212,175,55,0.3);
+        }
+        
+        .player-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            background: rgba(0,0,0,0.4);
+            padding: 18px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(212,175,55,0.2);
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(0,0,0,0.3) 100%);
+            border-left: 3px solid var(--accent-green);
+            padding: 12px;
+            border-radius: 6px;
+            transition: all 0.3s;
+        }
+        
+        .info-box:hover {
+            box-shadow: 0 4px 15px rgba(0,255,136,0.2);
+            transform: translateX(5px);
+        }
+        
+        .info-box label {
+            color: var(--text-secondary);
+            font-size: 0.8em;
+            display: block;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .info-box span {
+            color: var(--accent-green);
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .chat-box {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--gold);
+            border-radius: 8px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            height: 300px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .chat-box h3 {
+            color: var(--gold);
+            margin-bottom: 12px;
+            font-size: 1.2em;
+            text-shadow: 0 2px 8px rgba(212,175,55,0.3);
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .messages::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+            border-radius: 3px;
+        }
+        
+        .messages::-webkit-scrollbar-thumb {
+            background: var(--gold);
+            border-radius: 3px;
+        }
+        
+        .message {
+            padding: 10px;
+            background: rgba(0,0,0,0.4);
+            border-left: 3px solid var(--accent-green);
+            border-radius: 4px;
+            font-size: 0.95em;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .message strong {
+            color: var(--accent-green);
+        }
+        
+        .message .time {
+            color: var(--text-secondary);
+            font-size: 0.75em;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        input {
+            flex: 1;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--gold);
+            color: var(--text-primary);
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.95em;
+            transition: all 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--accent-green);
+            box-shadow: 0 0 12px rgba(0,255,136,0.3);
+            background: rgba(0,255,136,0.05);
+        }
+        
+        input::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        button {
+            background: linear-gradient(135deg, var(--gold) 0%, #ffd700 100%);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.9em;
+            box-shadow: 0 4px 15px rgba(212,175,55,0.3);
+        }
+        
+        button:hover {
+            background: linear-gradient(135deg, #ffd700 0%, #ffff00 100%);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(212,175,55,0.5);
+        }
+        
+        button:active {
+            transform: translateY(-1px);
+        }
+        
+        .sidebar-box {
+            background: linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(26,31,58,0.4) 100%);
+            border: 2px solid var(--gold);
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        
+        .sidebar-box:hover {
+            box-shadow: 0 6px 25px rgba(212,175,55,0.15);
+        }
+        
+        .sidebar-box h3 {
+            color: var(--gold);
+            margin-bottom: 12px;
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 10px;
+            font-size: 1.1em;
+            text-shadow: 0 2px 8px rgba(212,175,55,0.2);
+        }
+        
+        .online-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .online-player {
+            background: linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(0,0,0,0.2) 100%);
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent-green);
+            font-size: 0.95em;
+            transition: all 0.3s;
+        }
+        
+        .online-player:hover {
+            background: linear-gradient(135deg, rgba(0,255,136,0.15) 0%, rgba(0,0,0,0.3) 100%);
+            transform: translateX(5px);
+        }
+        
+        .online-player strong {
+            color: var(--accent-green);
+        }
+        
+        .faction {
+            display: inline-block;
+            font-size: 0.75em;
+            background: rgba(212,175,55,0.2);
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-top: 4px;
+            color: var(--gold);
+            border: 1px solid var(--gold);
+        }
+        
+        .login-box {
+            background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(212,175,55,0.1) 100%);
+            border: 2px solid var(--gold);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(212,175,55,0.2);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        .login-box h2 {
+            color: var(--gold);
+            margin-bottom: 25px;
+            font-size: 2em;
+            text-shadow: 0 4px 15px rgba(212,175,55,0.3);
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .form-group label {
+            display: block;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .form-group input {
+            width: 100%;
+        }
+        
+        .faction-select {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+        }
+        
+        .faction-btn {
+            padding: 12px;
+            background: rgba(0,0,0,0.4);
+            border: 2px solid var(--gold);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+        
+        .faction-btn:hover {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 12px rgba(0,255,136,0.3);
+            background: rgba(0,255,136,0.1);
+        }
+        
+        .faction-btn.selected {
+            background: linear-gradient(135deg, var(--gold) 0%, #ffd700 100%);
+            color: #000;
+            border-color: var(--gold);
+            box-shadow: 0 4px 15px rgba(212,175,55,0.4);
+        }
+        
+        .hidden { 
+            display: none !important; 
+        }
+        
+        @media (max-width: 1200px) {
+            .main-wrapper {
+                flex-direction: column;
+            }
+            
+            .right-panel {
+                width: 100%;
+                border-left: none;
+                border-top: 2px solid var(--gold);
+            }
+            
+            h1 { 
+                font-size: 2.2em; 
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .left-panel, .right-panel {
+                padding: 15px;
+            }
+            
+            h1 { 
+                font-size: 1.8em; 
+            }
+            
+            .faction-select {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .player-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="left-panel">
+            <header>
+                <h1>🏰 HoMM3 ONLINE</h1>
+                <div class="status">
+                    <div class="status-item">
+                        Status: <span id="status">Łączenie...</span>
+                    </div>
+                    <div class="status-item">
+                        Online: <span id="onlineCount">0</span>
+                    </div>
+                    <div class="status-item">
+                        Ping: <span id="ping">-</span>ms
+                    </div>
+                </div>
+            </header>
+            
+            <div class="game-area" id="gameArea">
+                <div class="login-box" id="loginBox">
+                    <h2>Dołącz do gry</h2>
+                    <div class="form-group">
+                        <label>Nazwa gracza:</label>
+                        <input type="text" id="username" placeholder="Wpisz swoją nazwę" value="">
+                    </div>
+                    <div class="form-group">
+                        <label>Wybierz frakcję:</label>
+                        <div class="faction-select" id="factionSelect">
+                            <button class="faction-btn" data-faction="CASTLE">🏰 Castle</button>
+                            <button class="faction-btn" data-faction="RAMPART">⛰️ Rampart</button>
+                            <button class="faction-btn" data-faction="TOWER">🔮 Tower</button>
+                            <button class="faction-btn" data-faction="INFERNO">😈 Inferno</button>
+                            <button class="faction-btn" data-faction="NECROPOLIS">💀 Necropolis</button>
+                            <button class="faction-btn" data-faction="DUNGEON">⚔️ Dungeon</button>
+                        </div>
+                    </div>
+                    <button onclick="login()" style="width: 100%; padding: 15px; font-size: 1.1em;">ZAGRAĆ</button>
+                </div>
+                
+                <div id="gameContent" class="hidden">
+                    <div class="game-header">
+                        <h2>Twoja gra</h2>
+                        <button onclick="logout()">Wyloguj</button>
+                    </div>
+                    
+                    <div class="player-info">
+                        <div class="info-box">
+                            <label>Gracz:</label>
+                            <span id="playerName">-</span>
+                        </div>
+                        <div class="info-box">
+                            <label>Frakcja:</label>
+                            <span id="playerFaction">-</span>
+                        </div>
+                        <div class="info-box">
+                            <label>Bohater:</label>
+                            <span id="heroName">-</span>
+                        </div>
+                        <div class="info-box">
+                            <label>Zamek:</label>
+                            <span id="castleName">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-box">
+                        <h3>💬 Chat</h3>
+                        <div class="messages" id="messages"></div>
+                        <div class="input-group">
+                            <input type="text" id="chatInput" placeholder="Wpisz wiadomość..." onkeypress="if(event.key==='Enter') sendMessage()">
+                            <button onclick="sendMessage()">Wyślij</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="right-panel">
+            <div class="sidebar-box" id="playersBox">
+                <h3>👥 Online (<span id="playerCount">0</span>)</h3>
+                <div class="online-list" id="playersList">
+                    <p style="color: var(--text-secondary);">Czekanie na graczy...</p>
+                </div>
+            </div>
+            
+            <div class="sidebar-box">
+                <h3>⚙️ Informacje</h3>
+                <p style="font-size: 0.9em; line-height: 1.8; color: var(--text-secondary);">
+                    <strong style="color: var(--gold);">Gra:</strong> Heroes III Online<br>
+                    <strong style="color: var(--gold);">Wersja:</strong> 1.0 HD<br>
+                    <strong style="color: var(--gold);">Status:</strong> <span style="color: var(--accent-green);">LIVE</span><br><br>
+                    <strong style="color: var(--gold);">Frakcje:</strong><br>
+                    🏰 Castle<br>
+                    ⛰️ Rampart<br>
+                    🔮 Tower<br>
+                    😈 Inferno<br>
+                    💀 Necropolis<br>
+                    ⚔️ Dungeon
+                </p>
+            </div>
+            
+            <div class="sidebar-box">
+                <h3>📊 Statystyki</h3>
+                <p style="font-size: 0.9em; line-height: 1.8; color: var(--text-secondary);">
+                    <strong style="color: var(--gold);">Graczy:</strong> <span id="totalPlayers" style="color: var(--accent-green);">0</span><br>
+                    <strong style="color: var(--gold);">Rozmiar mapy:</strong> 5000x5000<br>
+                    <strong style="color: var(--gold);">Czas tury:</strong> 10 min<br>
+                    <strong style="color: var(--gold);">Max graczy:</strong> 10000
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentPlayer = null;
+        let selectedFaction = 'CASTLE';
+        
+        socket.on('connect', () => {
+            updateStatus('Połączono', '#00ff88');
+            console.log('Connected to server');
+        });
+        
+        socket.on('disconnect', () => {
+            updateStatus('Rozłączono', '#e94560');
+            console.log('Disconnected');
+        });
+        
+        socket.on('AUTHENTICATED', (data) => {
+            if (data.success) {
+                currentPlayer = data.user;
+                console.log('Authenticated:', currentPlayer);
+                
+                document.getElementById('loginBox').classList.add('hidden');
+                document.getElementById('gameContent').classList.remove('hidden');
+                
+                document.getElementById('playerName').textContent = currentPlayer.username;
+                document.getElementById('playerFaction').textContent = currentPlayer.faction;
+                
+                if (data.heroes && data.heroes[0]) {
+                    document.getElementById('heroName').textContent = data.heroes[0].name;
+                }
+                if (data.castles && data.castles[0]) {
+                    document.getElementById('castleName').textContent = data.castles[0].name;
+                }
+            }
+        });
+        
+        socket.on('PLAYER_JOINED', (data) => {
+            updateOnlineCount(data.onlinePlayers);
+            if (data.message) {
+                addMessage('SYSTEM', data.message, '#d4af37');
+            }
+            refreshPlayerList();
+        });
+        
+        socket.on('PLAYER_LEFT', (data) => {
+            updateOnlineCount(data.onlinePlayers);
+            if (data.message) {
+                addMessage('SYSTEM', data.message, '#d4af37');
+            }
+            refreshPlayerList();
+        });
+        
+        socket.on('CHAT_MESSAGE', (data) => {
+            addMessage(data.username, data.message, '#00ff88');
+        });
+        
+        function login() {
+            const username = document.getElementById('username').value.trim();
+            if (!username) {
+                alert('Wpisz nazwę gracza!');
+                return;
+            }
+            
+            socket.emit('AUTHENTICATE', {
+                username: username,
+                faction: selectedFaction
+            });
+        }
+        
+        function logout() {
+            socket.disconnect();
+            currentPlayer = null;
+            document.getElementById('loginBox').classList.remove('hidden');
+            document.getElementById('gameContent').classList.add('hidden');
+            document.getElementById('username').value = '';
+            socket.connect();
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (message) {
+                socket.emit('CHAT_MESSAGE', { message: message });
+                input.value = '';
+            }
+        }
+        
+        function addMessage(username, message, color = '#e0e0e0') {
+            const messagesDiv = document.getElementById('messages');
+            const msgEl = document.createElement('div');
+            msgEl.className = 'message';
+            
+            const time = new Date().toLocaleTimeString('pl-PL');
+            msgEl.innerHTML = `<strong style="color: ${color};">${username}</strong> <span class="time">${time}</span><br>${escapeHtml(message)}`;
+            
+            messagesDiv.appendChild(msgEl);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            if (messagesDiv.children.length > 100) {
+                messagesDiv.removeChild(messagesDiv.firstChild);
+            }
+        }
+        
+        function updateStatus(status, color) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = status;
+            statusEl.style.color = color;
+        }
+        
+        function updateOnlineCount(count) {
+            document.getElementById('onlineCount').textContent = count || 0;
+            document.getElementById('totalPlayers').textContent = count || 0;
+        }
+        
+        function refreshPlayerList() {
+            fetch('/api/players')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('playersList');
+                    if (data.players.length === 0) {
+                        list.innerHTML = '<p style="color: var(--text-secondary);">Czekanie na graczy...</p>';
+                        return;
+                    }
+                    list.innerHTML = data.players.map(p => `
+                        <div class="online-player">
+                            <strong>${p.username}</strong>
+                            <div class="faction">${p.faction}</div>
+                        </div>
+                    `).join('');
+                    document.getElementById('playerCount').textContent = data.count;
+                    document.getElementById('totalPlayers').textContent = data.count;
+                });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Faction selection
+        document.querySelectorAll('.faction-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.faction-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedFaction = this.dataset.faction;
+            });
+        });
+        
+        // Initialize
+        document.querySelector('.faction-btn').click();
+        setInterval(refreshPlayerList, 5000);
+        setInterval(() => {
+            fetch('/api/health')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('ping').textContent = Math.round(Math.random() * 50 + 20);
+                })
+                .catch(() => updateStatus('Połączenie utracone', '#e94560'));
+        }, 5000);
+    </script>
+</body>
+</html>
